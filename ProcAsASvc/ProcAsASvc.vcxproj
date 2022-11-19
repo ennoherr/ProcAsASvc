@@ -127,7 +127,26 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DateDiff.cpp" />
+    <ClCompile Include="DbgOut.cpp" />
     <ClCompile Include="ProcAsASvc.cpp" />
+    <ClCompile Include="ServiceHelper.cpp" />
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="TimeInfo.cpp" />
+    <ClCompile Include="UniConvert.cpp" />
+    <ClCompile Include="WorkerInit.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="DateDiff.h" />
+    <ClInclude Include="DbgOut.h" />
+    <ClInclude Include="dirent.h" />
+    <ClInclude Include="ProcAsASvc.h" />
+    <ClInclude Include="ServiceHelper.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="TimeInfo.h" />
+    <ClInclude Include="UniConvert.h" />
+    <ClInclude Include="WorkerInit.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

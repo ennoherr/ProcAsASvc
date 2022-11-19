@@ -1,18 +1,22 @@
+#include "stdafx.h"
+
 #include <stdio.h>
-#include <tchar.h>
-#include <windows.h>
 #include <winbase.h>
 #include <winsvc.h>
 #include <process.h>
 
+#include "ProcAsASvc.h"
+#include "ServiceHelper.h"
 
 const int g_nBufferSize = 500;
-TCHAR g_pServiceName[g_nBufferSize + 1];
+TCHAR g_pBaseName[] = _T("ProcAsASvc");
+TCHAR g_pServiceName[500 + 1] = _T("ProcAsASvc");
 TCHAR g_pExeFile[g_nBufferSize + 1];
 TCHAR g_pInitFile[g_nBufferSize + 1];
 TCHAR g_pLogFile[g_nBufferSize + 1];
 const int g_nMaxProcCount = 127;
 PROCESS_INFORMATION g_pProcInfo[g_nMaxProcCount]{};
+
 
 SERVICE_STATUS          serviceStatus;
 SERVICE_STATUS_HANDLE   hServiceStatusHandle;
@@ -598,6 +602,67 @@ void WorkerProc(void* pParam)
 	}
 }
 
+void ShowUsage(void)
+{
+	_tprintf_s(_T("Service:\n"));
+	_tprintf_s(_T("%s -install   to install the service\n"), g_pBaseName);
+	_tprintf_s(_T("%s -remove    to remove the service\n"), g_pBaseName);
+	_tprintf_s(_T("%s -start     to start the service\n"), g_pBaseName);
+	_tprintf_s(_T("%s -stop      to stop the service\n"), g_pBaseName);
+
+	_tprintf_s(_T("\n"));
+	_tprintf_s(_T("Press any key to continue...\n"));
+
+	//_gettchar();
+}
+
+void ParseCmdLine(int argc, _TCHAR* argv[])
+{
+	if ((argc > 1) && ((*argv[1] == '-') || (*argv[1] == '/')))
+	{
+		if (_tcsicmp(_T("install"), argv[1] + 1) == 0)
+		{
+			if (CmdInstallService() != 0)
+				_tprintf(_T("ERROR: Failed to install service!"));
+			else
+				_tprintf(_T("STATUS: Service installed successfully!"));
+		}
+		else if (_tcsicmp(_T("remove"), argv[1] + 1) == 0)
+		{
+			if (CmdRemoveService() != 0)
+				_tprintf(_T("ERROR: Failed to remove service!"));
+			else
+				_tprintf(_T("STATUS: Service removed successfully!"));
+
+		}
+		else if (_tcsicmp(_T("start"), argv[1] + 1) == 0)
+		{
+			if (CmdStartService() != 0)
+				_tprintf(_T("ERROR: Failed to start service!"));
+			else
+				_tprintf(_T("STATUS: Service started successfully!"));
+
+		}
+		else if (_tcsicmp(_T("stop"), argv[1] + 1) == 0)
+		{
+			if (CmdStopService() != 0)
+				_tprintf(_T("ERROR: Failed to stop service!"));
+			else
+				_tprintf(_T("STATUS: Service stopped successfully!"));
+
+		}
+		else if (_tcsicmp(_T("h"), argv[1] + 1) == 0 || _tcsicmp(_T("?"), argv[1] + 1) == 0)
+		{
+			ShowUsage();
+		}
+	}
+	else // no cmd line switches
+	{
+//		_start = true;
+	}
+}
+
+
 ////////////////////////////////////////////////////////////////////// 
 //
 // Standard C Main
@@ -606,6 +671,7 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
 	// initialize global critical section
 	InitializeCriticalSection(&myCS);
+
 	// initialize variables for .exe, .ini, and .log file names
 	TCHAR pModuleFile[g_nBufferSize + 1];
 	DWORD dwSize = GetModuleFileName(NULL, pModuleFile, g_nBufferSize);
@@ -622,12 +688,14 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 		_tprintf_s(_T("Invalid module file name: %s\r\n"), pModuleFile);
 		return 1;
 	}
+
 	WriteLog(g_pExeFile);
 	WriteLog(g_pInitFile);
 	WriteLog(g_pLogFile);
 	// read service name from .ini file
-	GetPrivateProfileString(_T("Settings"), _T("ServiceName"), _T("ProcAsASvc"), g_pServiceName, g_nBufferSize, g_pInitFile);
+	GetPrivateProfileString(_T("Settings"), _T("ServiceName"), g_pBaseName, g_pServiceName, g_nBufferSize, g_pInitFile);
 	WriteLog(g_pServiceName);
+
 	// uninstall service if switch is "-u"
 	if (argc == 2 && _tcsicmp(_T("-u"), argv[1]) == 0)
 	{
