@@ -1,7 +1,3 @@
-////////////////////////////////////////////////////////////////////// 
-// NT Service Stub Code (For XYROOT )
-//////////////////////////////////////////////////////////////////////
-
 #include <stdio.h>
 #include <tchar.h>
 #include <windows.h>
@@ -10,14 +6,13 @@
 #include <process.h>
 
 
-const int nBufferSize = 500;
-TCHAR pServiceName[nBufferSize + 1];
-TCHAR pExeFile[nBufferSize + 1];
-TCHAR pInitFile[nBufferSize + 1];
-TCHAR pLogFile[nBufferSize + 1];
-const int nMaxProcCount = 127;
-PROCESS_INFORMATION pProcInfo[nMaxProcCount];
-
+const int g_nBufferSize = 500;
+TCHAR g_pServiceName[g_nBufferSize + 1];
+TCHAR g_pExeFile[g_nBufferSize + 1];
+TCHAR g_pInitFile[g_nBufferSize + 1];
+TCHAR g_pLogFile[g_nBufferSize + 1];
+const int g_nMaxProcCount = 127;
+PROCESS_INFORMATION g_pProcInfo[g_nMaxProcCount]{};
 
 SERVICE_STATUS          serviceStatus;
 SERVICE_STATUS_HANDLE   hServiceStatusHandle;
@@ -30,18 +25,20 @@ CRITICAL_SECTION myCS;
 void WriteLog(TCHAR* pMsg)
 {
 	// write error or other information into log file
-	::EnterCriticalSection(&myCS);
+	EnterCriticalSection(&myCS);
 	try
 	{
 		SYSTEMTIME oT;
-		::GetLocalTime(&oT);
+		GetLocalTime(&oT);
 		FILE* pLog = NULL;
-		int err = _tfopen_s(&pLog, pLogFile, _T("a"));
-		_ftprintf_s(pLog, _T("%04d-%02d-%02d_T%02d:%02d:%02d; %s\n"), oT.wYear, oT.wMonth, oT.wDay, oT.wHour, oT.wMinute, oT.wSecond, pMsg);
-		fclose(pLog);
+		if (_tfopen_s(&pLog, g_pLogFile, _T("a")) == 0 && pLog != NULL)
+		{
+			_ftprintf_s(pLog, _T("%04d-%02d-%02d_T%02d:%02d:%02d; %s\n"), oT.wYear, oT.wMonth, oT.wDay, oT.wHour, oT.wMinute, oT.wSecond, pMsg);
+			fclose(pLog);
+		}
 	}
 	catch (...) {}
-	::LeaveCriticalSection(&myCS);
+	LeaveCriticalSection(&myCS);
 }
 
 ////////////////////////////////////////////////////////////////////// 
@@ -51,7 +48,7 @@ void WriteLog(TCHAR* pMsg)
 
 SERVICE_TABLE_ENTRY   DispatchTable[] =
 {
-	{pServiceName, ProcAsASvcMain},
+	{g_pServiceName, ProcAsASvcMain},
 	{NULL, NULL}
 };
 
@@ -63,30 +60,30 @@ BOOL StartProcess(int nIndex)
 	// start a process with given index
 	STARTUPINFO startUpInfo = { sizeof(STARTUPINFO),
 		NULL,
-		LPTSTR(""),
+		LPTSTR(_T("")),
 		NULL,
 		0,0,0,0,0,0,0,
 		STARTF_USESHOWWINDOW,
 		0,0,NULL,0,0,0 };
 
-	TCHAR pItem[nBufferSize + 1];
+	TCHAR pItem[g_nBufferSize + 1];
 	_stprintf_s(pItem, _T("Process%d\0"), nIndex);
-	TCHAR pCommandLine[nBufferSize + 1];
-	GetPrivateProfileString(pItem, _T("CommandLine"), _T(""), pCommandLine, nBufferSize, pInitFile);
+	TCHAR pCommandLine[g_nBufferSize + 1];
+	GetPrivateProfileString(pItem, _T("CommandLine"), _T(""), pCommandLine, g_nBufferSize, g_pInitFile);
 
 	if (_tcslen(pCommandLine) > 4)
 	{
-		TCHAR pWorkingDir[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("WorkingDir"), _T(""), pWorkingDir, nBufferSize, pInitFile);
-		TCHAR pUserName[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("UserName"), _T(""), pUserName, nBufferSize, pInitFile);
-		TCHAR pPassword[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("Password"), _T(""), pPassword, nBufferSize, pInitFile);
-		TCHAR pDomain[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("Domain"), _T(""), pDomain, nBufferSize, pInitFile);
+		TCHAR pWorkingDir[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("WorkingDir"), _T(""), pWorkingDir, g_nBufferSize, g_pInitFile);
+		TCHAR pUserName[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("UserName"), _T(""), pUserName, g_nBufferSize, g_pInitFile);
+		TCHAR pPassword[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("Password"), _T(""), pPassword, g_nBufferSize, g_pInitFile);
+		TCHAR pDomain[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("Domain"), _T(""), pDomain, g_nBufferSize, g_pInitFile);
 		BOOL bImpersonate = (_tcslen(pUserName) > 0 && _tcslen(pPassword) > 0);
-		TCHAR pUserInterface[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("UserInterface"), _T("N"), pUserInterface, nBufferSize, pInitFile);
+		TCHAR pUserInterface[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("UserInterface"), _T("N"), pUserInterface, g_nBufferSize, g_pInitFile);
 		BOOL bUserInterface = (bImpersonate == FALSE) && 
 			(pUserInterface[0] == _T('y') || pUserInterface[0] == _T('Y') || pUserInterface[0] == _T('1')) ? TRUE : FALSE;
 
@@ -103,16 +100,16 @@ BOOL StartProcess(int nIndex)
 			DWORD len;
 			GetUserObjectInformation(hCurrentDesktop, UOI_NAME, CurrentDesktopName, MAX_PATH, &len);
 			startUpInfo.wShowWindow = SW_HIDE;
-			startUpInfo.lpDesktop = (bImpersonate == FALSE) ? CurrentDesktopName : LPTSTR("");
+			startUpInfo.lpDesktop = (bImpersonate == FALSE) ? CurrentDesktopName : LPTSTR(_T(""));
 		}
 		if (bImpersonate == FALSE)
 		{
 
 			// create the process
-			if (CreateProcess(NULL, pCommandLine, NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS, NULL, _tcslen(pWorkingDir) == 0 ? NULL : pWorkingDir, &startUpInfo, &pProcInfo[nIndex]))
+			if (CreateProcess(NULL, pCommandLine, NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS, NULL, _tcslen(pWorkingDir) == 0 ? NULL : pWorkingDir, &startUpInfo, &g_pProcInfo[nIndex]))
 			{
-				TCHAR pPause[nBufferSize + 1];
-				GetPrivateProfileString(pItem, _T("PauseStart"), _T("100"), pPause, nBufferSize, pInitFile);
+				TCHAR pPause[g_nBufferSize + 1];
+				GetPrivateProfileString(pItem, _T("PauseStart"), _T("100"), pPause, g_nBufferSize, g_pInitFile);
 				Sleep(_ttoi(pPause));
 				return TRUE;
 			}
@@ -130,10 +127,10 @@ BOOL StartProcess(int nIndex)
 			HANDLE hToken = NULL;
 			if (LogonUser(pUserName, (_tcslen(pDomain) == 0) ? _T(".") : pDomain, pPassword, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, &hToken))
 			{
-				if (CreateProcessAsUser(hToken, NULL, pCommandLine, NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS, NULL, (_tcslen(pWorkingDir) == 0) ? NULL : pWorkingDir, &startUpInfo, &pProcInfo[nIndex]))
+				if (CreateProcessAsUser(hToken, NULL, pCommandLine, NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS, NULL, (_tcslen(pWorkingDir) == 0) ? NULL : pWorkingDir, &startUpInfo, &g_pProcInfo[nIndex]))
 				{
-					TCHAR pPause[nBufferSize + 1];
-					GetPrivateProfileString(pItem, _T("PauseStart"), _T("100"), pPause, nBufferSize, pInitFile);
+					TCHAR pPause[g_nBufferSize + 1];
+					GetPrivateProfileString(pItem, _T("PauseStart"), _T("100"), pPause, g_nBufferSize, g_pInitFile);
 					Sleep(_ttoi(pPause));
 					return TRUE;
 				}
@@ -156,27 +153,27 @@ BOOL StartProcess(int nIndex)
 void EndProcess(int nIndex)
 {
 	// end a program started by the service
-	if (pProcInfo[nIndex].hProcess)
+	if (g_pProcInfo[nIndex].hProcess)
 	{
-		TCHAR pItem[nBufferSize + 1];
+		TCHAR pItem[g_nBufferSize + 1];
 		_stprintf_s(pItem, _T("Process%d\0"), nIndex);
-		TCHAR pPause[nBufferSize + 1];
-		GetPrivateProfileString(pItem, _T("PauseEnd"), _T("100"), pPause, nBufferSize, pInitFile);
+		TCHAR pPause[g_nBufferSize + 1];
+		GetPrivateProfileString(pItem, _T("PauseEnd"), _T("100"), pPause, g_nBufferSize, g_pInitFile);
 		int nPauseEnd = _ttoi(pPause);
 		// post a WM_QUIT message first
-		PostThreadMessage(pProcInfo[nIndex].dwThreadId, WM_QUIT, 0, 0);
+		PostThreadMessage(g_pProcInfo[nIndex].dwThreadId, WM_QUIT, 0, 0);
 		// sleep for a while so that the process has a chance to terminate itself
-		::Sleep(nPauseEnd > 0 ? nPauseEnd : 50);
+		Sleep(nPauseEnd > 0 ? nPauseEnd : 50);
 		// terminate the process by force
-		TerminateProcess(pProcInfo[nIndex].hProcess, 0);
+		TerminateProcess(g_pProcInfo[nIndex].hProcess, 0);
 		try // close handles to avoid ERROR_NO_SYSTEM_RESOURCES
 		{
-			::CloseHandle(pProcInfo[nIndex].hThread);
-			::CloseHandle(pProcInfo[nIndex].hProcess);
+			CloseHandle(g_pProcInfo[nIndex].hThread);
+			CloseHandle(g_pProcInfo[nIndex].hProcess);
 		}
 		catch (...) {}
-		pProcInfo[nIndex].hProcess = 0;
-		pProcInfo[nIndex].hThread = 0;
+		g_pProcInfo[nIndex].hProcess = 0;
+		g_pProcInfo[nIndex].hThread = 0;
 	}
 }
 
@@ -340,7 +337,7 @@ VOID WINAPI ProcAsASvcMain(DWORD dwArgc, LPTSTR* lpszArgv)
 	serviceStatus.dwCheckPoint = 0;
 	serviceStatus.dwWaitHint = 0;
 
-	hServiceStatusHandle = RegisterServiceCtrlHandler(pServiceName, ProcAsASvcHandler);
+	hServiceStatusHandle = RegisterServiceCtrlHandler(g_pServiceName, ProcAsASvcHandler);
 	if (hServiceStatusHandle == 0)
 	{
 		long nError = GetLastError();
@@ -362,9 +359,10 @@ VOID WINAPI ProcAsASvcMain(DWORD dwArgc, LPTSTR* lpszArgv)
 		WriteLog(pTemp);
 	}
 
-	for (int i = 0; i < nMaxProcCount; i++)
+	for (int i = 0; i < g_nMaxProcCount; i++)
 	{
-		pProcInfo[i].hProcess = 0;
+		ZeroMemory(&g_pProcInfo[i], sizeof(g_pProcInfo[i]));
+		g_pProcInfo[i].hProcess = 0;
 		StartProcess(i);
 	}
 }
@@ -385,7 +383,7 @@ VOID WINAPI ProcAsASvcHandler(DWORD fdwControl)
 		serviceStatus.dwWaitHint = 0;
 		// terminate all processes started by this service before shutdown
 		{
-			for (int i = nMaxProcCount - 1; i >= 0; i--)
+			for (int i = g_nMaxProcCount - 1; i >= 0; i--)
 			{
 				EndProcess(i);
 			}
@@ -412,7 +410,7 @@ VOID WINAPI ProcAsASvcHandler(DWORD fdwControl)
 		{
 			int nIndex = fdwControl & 0x7F;
 			// bounce a single process
-			if (nIndex >= 0 && nIndex < nMaxProcCount)
+			if (nIndex >= 0 && nIndex < g_nMaxProcCount)
 			{
 				EndProcess(nIndex);
 				StartProcess(nIndex);
@@ -420,11 +418,11 @@ VOID WINAPI ProcAsASvcHandler(DWORD fdwControl)
 			// bounce all processes
 			else if (nIndex == 127)
 			{
-				for (int i = nMaxProcCount - 1; i >= 0; i--)
+				for (int i = g_nMaxProcCount - 1; i >= 0; i--)
 				{
 					EndProcess(i);
 				}
-				for (int i = 0; i < nMaxProcCount; i++)
+				for (int i = 0; i < g_nMaxProcCount; i++)
 				{
 					StartProcess(i);
 				}
@@ -545,39 +543,40 @@ VOID Install(TCHAR* pPath, TCHAR* pName)
 void WorkerProc(void* pParam)
 {
 	int nCheckProcessSeconds = 0;
-	TCHAR pCheckProcess[nBufferSize + 1];
-	GetPrivateProfileString(_T("Settings"), _T("CheckProcess"), _T("0"), pCheckProcess, nBufferSize, pInitFile);
+	TCHAR pCheckProcess[g_nBufferSize + 1];
+	GetPrivateProfileString(_T("Settings"), _T("CheckProcess"), _T("0"), pCheckProcess, g_nBufferSize, g_pInitFile);
 	int nCheckProcess = _ttoi(pCheckProcess);
 	if (nCheckProcess > 0) nCheckProcessSeconds = nCheckProcess * 60;
 	else
 	{
-		GetPrivateProfileString(_T("Settings"), _T("CheckProcessSeconds"), _T("600"), pCheckProcess, nBufferSize, pInitFile);
+		GetPrivateProfileString(_T("Settings"), _T("CheckProcessSeconds"), _T("600"), pCheckProcess, g_nBufferSize, g_pInitFile);
 		nCheckProcessSeconds = _ttoi(pCheckProcess);
 	}
 	while (nCheckProcessSeconds > 0)
 	{
-		::Sleep(1000 * nCheckProcessSeconds);
-		for (int i = 0; i < nMaxProcCount; i++)
+		Sleep(1000 * nCheckProcessSeconds);
+		for (int i = 0; i < g_nMaxProcCount; i++)
 		{
-			if (pProcInfo[i].hProcess)
+			if (g_pProcInfo[i].hProcess != NULL)
 			{
-				TCHAR pItem[nBufferSize + 1];
+				TCHAR pItem[g_nBufferSize + 1];
 				_stprintf_s(pItem, _T("Process%d\0"), i);
-				TCHAR pRestart[nBufferSize + 1];
-				GetPrivateProfileString(pItem, _T("Restart"), _T("No"), pRestart, nBufferSize, pInitFile);
+				TCHAR pRestart[g_nBufferSize + 1];
+				GetPrivateProfileString(pItem, _T("Restart"), _T("No"), pRestart, g_nBufferSize, g_pInitFile);
 				if (pRestart[0] == 'Y' || pRestart[0] == 'y' || pRestart[0] == '1')
 				{
 					DWORD dwCode;
-					if (::GetExitCodeProcess(pProcInfo[i].hProcess, &dwCode))
+					if (GetExitCodeProcess(g_pProcInfo[i].hProcess, &dwCode))
 					{
 						if (dwCode != STILL_ACTIVE)
 						{
 							try // close handles to avoid ERROR_NO_SYSTEM_RESOURCES
 							{
-								::CloseHandle(pProcInfo[i].hThread);
-								::CloseHandle(pProcInfo[i].hProcess);
+								CloseHandle(g_pProcInfo[i].hThread);
+								CloseHandle(g_pProcInfo[i].hProcess);
 							}
 							catch (...) {}
+
 							if (StartProcess(i))
 							{
 								TCHAR pTemp[121];
@@ -606,50 +605,50 @@ void WorkerProc(void* pParam)
 int __cdecl _tmain(int argc, _TCHAR* argv[])
 {
 	// initialize global critical section
-	::InitializeCriticalSection(&myCS);
+	InitializeCriticalSection(&myCS);
 	// initialize variables for .exe, .ini, and .log file names
-	TCHAR pModuleFile[nBufferSize + 1];
-	DWORD dwSize = GetModuleFileName(NULL, pModuleFile, nBufferSize);
+	TCHAR pModuleFile[g_nBufferSize + 1];
+	DWORD dwSize = GetModuleFileName(NULL, pModuleFile, g_nBufferSize);
 	pModuleFile[dwSize] = 0;
 	if (dwSize > 4 && pModuleFile[dwSize - 4] == '.')
 	{
-		_stprintf_s(pExeFile, _T("%s"), pModuleFile);
+		_stprintf_s(g_pExeFile, _T("%s"), pModuleFile);
 		pModuleFile[dwSize - 4] = 0;
-		_stprintf_s(pInitFile, _T("%s.ini"), pModuleFile);
-		_stprintf_s(pLogFile, _T("%s.log"), pModuleFile);
+		_stprintf_s(g_pInitFile, _T("%s.ini"), pModuleFile);
+		_stprintf_s(g_pLogFile, _T("%s.log"), pModuleFile);
 	}
 	else
 	{
 		_tprintf_s(_T("Invalid module file name: %s\r\n"), pModuleFile);
 		return 1;
 	}
-	WriteLog(pExeFile);
-	WriteLog(pInitFile);
-	WriteLog(pLogFile);
+	WriteLog(g_pExeFile);
+	WriteLog(g_pInitFile);
+	WriteLog(g_pLogFile);
 	// read service name from .ini file
-	GetPrivateProfileString(_T("Settings"), _T("ServiceName"), _T("ProcAsASvc"), pServiceName, nBufferSize, pInitFile);
-	WriteLog(pServiceName);
+	GetPrivateProfileString(_T("Settings"), _T("ServiceName"), _T("ProcAsASvc"), g_pServiceName, g_nBufferSize, g_pInitFile);
+	WriteLog(g_pServiceName);
 	// uninstall service if switch is "-u"
 	if (argc == 2 && _tcsicmp(_T("-u"), argv[1]) == 0)
 	{
-		UnInstall(pServiceName);
+		UnInstall(g_pServiceName);
 	}
 	// install service if switch is "-i"
 	else if (argc == 2 && _tcsicmp(_T("-i"), argv[1]) == 0)
 	{
-		Install(pExeFile, pServiceName);
+		Install(g_pExeFile, g_pServiceName);
 	}
 	// bounce service if switch is "-b"
 	else if (argc == 2 && _tcsicmp(_T("-b"), argv[1]) == 0)
 	{
-		KillService(pServiceName);
-		RunService(pServiceName, 0, NULL);
+		KillService(g_pServiceName);
+		RunService(g_pServiceName, 0, NULL);
 	}
 	// bounce a specifc program if the index is supplied
 	else if (argc == 3 && _tcsicmp(_T("-b"), argv[1]) == 0)
 	{
 		int nIndex = _ttoi(argv[2]);
-		if (BounceProcess(pServiceName, nIndex))
+		if (BounceProcess(g_pServiceName, nIndex))
 		{
 			TCHAR pTemp[121];
 			_stprintf_s(pTemp, _T("Bounced process %d"), nIndex);
@@ -715,7 +714,7 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 		}
 		// you don't get here unless the service is shutdown
 	}
-	::DeleteCriticalSection(&myCS);
+	DeleteCriticalSection(&myCS);
 
 	return 0;
 }
